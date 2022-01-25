@@ -2,7 +2,6 @@ package org.terifan.apps.hexviewer;
 
 import java.awt.BorderLayout;
 import java.awt.Font;
-import java.awt.HeadlessException;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.dnd.DnDConstants;
 import java.awt.dnd.DropTarget;
@@ -78,7 +77,9 @@ public class HexViewer
 				@Override
 				public void stateChanged(ChangeEvent aEvent)
 				{
-					mFrame.setTitle(((FileInstance)mTabbedPane.getSelectedComponent()).getFile().getAbsolutePath());
+					FileInstance tab = (FileInstance)mTabbedPane.getSelectedComponent();
+					mFrame.setTitle(tab.getFile().getAbsolutePath());
+					tab.update();
 				}
 			});
 
