@@ -1,160 +1,109 @@
 package org.terifan.apps.hexviewer;
 
+import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Font;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
-import java.awt.font.FontRenderContext;
-import java.awt.font.LineMetrics;
+import java.awt.FlowLayout;
+import java.awt.event.AdjustmentEvent;
+import java.awt.event.AdjustmentListener;
+import java.io.File;
+import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.file.Files;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.text.SimpleDateFormat;
+import javax.swing.BorderFactory;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollBar;
 
 
-class HexTextPane extends JPanel
+public class HexTextPane extends JPanel
 {
-	private RandomAccessFile mFile;
-	private JScrollBar mScrollBar;
+	private final static long serialVersionUID = 1L;
 
-	private int mCharsPerLine;
-	private int mLineHeight;
-	private int mCharWidth;
-	private int mRowNumberWidth;
-	private int mHexGroupSpacing;
-	private int mHexSymbolWidth;
-	private Font mFont = new Font("courier new", Font.PLAIN, 12);
-	private int mDescent;
+	private RandomAccessFile mFileStream;
+	private File mFile;
+	private JPanel mStatusBar;
 
 
-	public HexTextPane(RandomAccessFile aFile, JScrollBar aScrollBar)
+	public HexTextPane(File aFile)
 	{
-		mFile = aFile;
-		mScrollBar = aScrollBar;
-
-		FontRenderContext frc = new FontRenderContext(null, true, true);
-		LineMetrics lm = mFont.getLineMetrics("Aj", frc);
-		int cw = (int)mFont.getStringBounds("E", frc).getWidth() + 1;
-
-		mLineHeight = (int)lm.getHeight() + 4;
-		mDescent = (int)lm.getDescent();
-		mHexSymbolWidth = 2 * cw + cw / 2;
-		mHexGroupSpacing = cw;
-		mCharWidth = cw;
-
-		mRowNumberWidth = 100;
-
-		addComponentListener(new ComponentAdapter()
-		{
-			@Override
-			public synchronized void componentResized(ComponentEvent aEvent)
-			{
-				int n = 8 * Math.max(1, ((getWidth() - mRowNumberWidth) / (8 * (mCharWidth + mHexSymbolWidth) + mHexGroupSpacing)));
-
-				if (n != mCharsPerLine)
-				{
-					mCharsPerLine = n;
-
-					long len;
-					try
-					{
-						len = mFile.length();
-					}
-					catch (Exception e)
-					{
-						return;
-					}
-
-					mScrollBar.setMaximum(1 + (int)Math.ceil(len / (double)mCharsPerLine));
-
-					invalidate();
-					repaint();
-				}
-
-				mScrollBar.setVisibleAmount((int)Math.ceil(getHeight() / (double)mLineHeight));
-				mScrollBar.invalidate();
-				mScrollBar.validate();
-			}
-		});
-	}
-
-
-	@Override
-	protected void paintComponent(Graphics aGraphics)
-	{
-		int w = getWidth();
-
-		Graphics2D g = (Graphics2D)aGraphics;
-		g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
-		g.setColor(Color.WHITE);
-		g.fillRect(0, 0, w, getHeight());
-		g.setFont(mFont);
-		g.setColor(Color.BLACK);
-
-		long row = mScrollBar.getValue();
+		super.setLayout(new BorderLayout());
 
 		try
 		{
-			mFile.seek(row * mCharsPerLine);
+			mFile = aFile;
+			mFileStream = new RandomAccessFile(mFile, "r");
+
+			JScrollBar scrollBar = new JScrollBar(JScrollBar.VERTICAL);
+
+			HexTextPaneImpl textPane = new HexTextPaneImpl(mFileStream, scrollBar);
+
+			scrollBar.addAdjustmentListener(new AdjustmentListener()
+			{
+				@Override
+				public void adjustmentValueChanged(AdjustmentEvent aEvent)
+				{
+					textPane.repaint();
+				}
+			});
+
+			mStatusBar = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+			mStatusBar.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(172, 172, 172)));
+
+			update();
+
+			super.add(textPane, BorderLayout.CENTER);
+			super.add(scrollBar, BorderLayout.EAST);
+			super.add(mStatusBar, BorderLayout.SOUTH);
 		}
 		catch (Exception e)
 		{
 			e.printStackTrace(System.out);
 		}
+	}
 
-		int y = mLineHeight - mDescent;
-		byte[] buf = new byte[mCharsPerLine];
 
-		for (int i = 0; i < 1 + getHeight() / mLineHeight; i++)
+	public void update()
+	{
+		long created = 0;
+		try
 		{
-			int len = -1;
-			try
-			{
-				len = mFile.read(buf);
-			}
-			catch (Exception e)
-			{
-			}
+			created = Files.readAttributes(mFile.toPath(), BasicFileAttributes.class).creationTime().toMillis();
+		}
+		catch (IOException e)
+		{
+		}
 
-			if (len <= 0)
-			{
-				break;
-			}
+		SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
-			String rt = Long.toString(row * mCharsPerLine);
-			int x = mRowNumberWidth - mCharWidth - (int)g.getFontMetrics().getStringBounds(rt, g).getWidth();
-			g.drawString(rt, x, y);
+		mStatusBar.removeAll();
+		mStatusBar.add(new JLabel("Length: "));
+		mStatusBar.add(new JLabel("" + mFile.length()));
+		mStatusBar.add(new JLabel("        "));
+		mStatusBar.add(new JLabel("Created: "));
+		mStatusBar.add(new JLabel(sdf.format(created)));
+		mStatusBar.add(new JLabel("        "));
+		mStatusBar.add(new JLabel("Modified: "));
+		mStatusBar.add(new JLabel(sdf.format(mFile.lastModified())));
+	}
 
-			x = mRowNumberWidth;
-			for (int j = 0; j < len; j++)
-			{
-				g.drawString(String.format("%02X", buf[j]), x, y);
-				if ((j % 8) == 7)
-				{
-					x += mHexGroupSpacing;
-				}
-				x += mHexSymbolWidth;
-			}
 
-			x = mRowNumberWidth + mCharsPerLine * mHexSymbolWidth + mHexGroupSpacing * (mCharsPerLine / 8);
-			for (int j = 0; j < len; j++)
-			{
-				char c = (char)buf[j];
-				if (c < 32 || c > 127)
-				{
-					g.drawString(".", x, y);
-				}
-				else
-				{
-					g.drawString(Character.toString(c), x, y);
-				}
-				x += mCharWidth;
-			}
+	public File getFile()
+	{
+		return mFile;
+	}
 
-			y += mLineHeight;
-			row++;
+
+	public void close()
+	{
+		try
+		{
+			mFileStream.close();
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace(System.out);
 		}
 	}
 }

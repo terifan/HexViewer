@@ -41,7 +41,7 @@ public class HexViewer
 					{
 						try
 						{
-							FileInstance tab = (FileInstance)mTabbedPane.getTabComponentAt(i);
+							HexTextPane tab = (HexTextPane)mTabbedPane.getTabComponentAt(i);
 							tab.close();
 						}
 						catch (Exception e)
@@ -77,7 +77,7 @@ public class HexViewer
 				@Override
 				public void stateChanged(ChangeEvent aEvent)
 				{
-					FileInstance tab = (FileInstance)mTabbedPane.getSelectedComponent();
+					HexTextPane tab = (HexTextPane)mTabbedPane.getSelectedComponent();
 					mFrame.setTitle(tab.getFile().getAbsolutePath());
 					tab.update();
 				}
@@ -88,7 +88,7 @@ public class HexViewer
 			mFrame.add(mTabbedPane);
 		}
 
-		FileInstance panel = new FileInstance(this, aFile);
+		HexTextPane panel = new HexTextPane(aFile);
 		mTabbedPane.addTab(aFile.getName(), panel);
 		addDropListener(panel);
 
